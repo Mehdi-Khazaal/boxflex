@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- The same tree as showcase.adb, in real CSS. Open in a browser and
+     compare with showcase.svg. When they match, step 1 is done. -->
+<html><head><style>
+  body { margin: 0; }
+  .root    { display: flex; flex-direction: column; width: 800px; height: 600px;
+             padding: 8px; gap: 8px; box-sizing: border-box; background: #d9d9d9; }
+  .toolbar { display: flex; flex-direction: row; height: 40px; gap: 4px;
+             align-items: center; background: #a3c4f3; }
+  .button  { width: 80px; height: 32px; background: #ffe5a0; }
+  .content { display: flex; flex-direction: row; flex-grow: 1; gap: 8px; background: #c9b6f2; }
+  .sidebar { width: 200px; background: #f2d0b6; }
+  .main    { flex-grow: 2; background: #b6e8f2; }
+  .panel   { flex-grow: 1; background: #d9d9d9; }
+  div { outline: 1px solid #333; }
+</style></head><body>
+<div class="root">
+  <div class="toolbar">
+    <div class="button"></div><div class="button"></div><div class="button"></div>
+  </div>
+  <div class="content">
+    <div class="sidebar"></div><div class="main"></div><div class="panel"></div>
+  </div>
+</div>
+</body></html>

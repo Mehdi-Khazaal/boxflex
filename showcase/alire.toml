@@ -1,0 +1,16 @@
+name = "boxflex_showcase"
+description = "boxflex acceptance test: lays out a small UI and writes an SVG"
+version = "0.1.0-dev"
+authors = ["Olivier Henley"]
+maintainers = ["Olivier Henley <henley@adacore.com>"]
+maintainers-logins = ["ohenley"]
+licenses = "Apache-2.0"
+
+executables = ["showcase"]
+project-files = ["boxflex_showcase.gpr"]
+
+[[depends-on]]
+boxflex = "*"
+
+[[pins]]
+boxflex = { path = ".." }
