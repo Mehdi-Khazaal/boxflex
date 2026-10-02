@@ -1,13 +1,6 @@
 name = "boxflex"
 description = "Fixed-point flexbox layout engine with proven geometry"
-long-description = """
-A CSS-flexbox layout engine in Ada/SPARK. No floating point, no heap,
-no access types: layouts are deterministic and bit-identical on every
-target, from desktop to bare metal. Geometry is specified with
-contracts and proved with SPARK.
 
-GNAT Academic Program capstone project.
-"""
 version = "0.1.0-dev"
 authors = ["Olivier Henley"]
 maintainers = ["Olivier Henley <henley@adacore.com>"]
