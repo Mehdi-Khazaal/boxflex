@@ -5,7 +5,7 @@ package body Boxflex.Flex with SPARK_Mode is
    type Units is range -2 ** 62 .. 2 ** 62 - 1;
 
    function To_Units (L : Length) return Units is
-     (Units (Long_Long_Integer'Integer_Value (L)));
+     (Units (L / Length'(Length'Small)));
 
    function Clamp (V, Lo, Hi : Length) return Length is
      (if V < Lo then Lo elsif Hi >= Lo and then V > Hi then Hi else V);
@@ -76,7 +76,7 @@ package body Boxflex.Flex with SPARK_Mode is
       --  so a position of at most Length'Last (as a Coord) is safe.
 
       function Pos (U : Units) return Coord is
-        (if U > Max_U then Max_Pos else Coord'Fixed_Value (Long_Long_Integer (U)))
+        (if U > Max_U then Max_Pos else Coord'(Coord'Small) * Integer (U))
         with Pre => U >= 0;
       --  Units to Coord, saturating at Max_Pos.
 
