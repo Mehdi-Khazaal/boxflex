@@ -19,6 +19,30 @@ package body Boxflex.Flex with SPARK_Mode is
       (not I.Cross_Definite and then (I.Self = Stretch
       or else (I.Self = Auto and then C.Align = Stretch)));
 
+   --  Specification for Stretched_Cross: The result is the item's cross size when stretched
+   --  to fill the line's cross size, clamped to the item's min and max cross sizes. The result
+   --  is always >= I.Min_Cross and <= I.Max_Cross (if Max_Cross >= Min_Cross).
+   function Stretched_Cross (Line_Cross : Length; I : Item) return Length
+      with
+         Post => Stretched_Cross'Result >= I.Min_Cross and then
+            (I.Max_Cross < I.Min_Cross or else Stretched_Cross'Result <= I.Max_Cross);
+
+   --  Implementation for Stretched_Cross
+   function Stretched_Cross (Line_Cross : Length; I : Item) return Length
+   is
+      --  Convert the working variables to units
+      Line_U : constant Units := To_Units (Line_Cross);
+      Start_U : constant Units := To_Units (I.Margin_Cross_Start);
+      End_U : constant Units := To_Units (I.Margin_Cross_End);
+
+      --  Calculate the stretched cross size in units
+      Available_U : constant Units := Units'Max (0, Line_U - Start_U - End_U);
+      --  Convert this back to Length and clamp it to the item's min and max cross sizes
+      Available_L : constant Length := Length'(Length'Small) * Integer (Available_U);
+   begin
+      return Clamp (Available_L, I.Min_Cross, I.Max_Cross);
+   end Stretched_Cross;
+
    -----------------------
    -- Hypothetical_Main --
    -----------------------
@@ -118,6 +142,7 @@ begin
       C : Container := (others => <>);
       I : Item := (others => <>);
    begin
+      --  <Wants_Stretched test cases>
       --  Case 1: Defaults should produce Stretch
       if not Wants_Stretch (C, I) then
          raise Program_Error with "Wants_Stretch failed for default values";
@@ -158,5 +183,73 @@ begin
       if not Wants_Stretch (C, I) then
          raise Program_Error with "Wants_Stretch failed to inherit container alignment";
       end if;
+
+      --  End of Wants_Stretch test cases
    end;
+
+      --  <Stretched_Cross test cases>
+      --  Case 1: Line_Cross = 120, Start_Margin = 10, End_Margin = 15,
+      --  Min_Cross = 0, Max_Cross = 100, should produce 95
+      declare
+         Line_Cross : Length := 120.0;
+         Start_Margin : constant Length := 10.0;
+         End_Margin : constant Length := 15.0;
+         Min_Cross : constant Length := 0.0;
+         Max_Cross : constant Length := 100.0;
+         I : Item :=
+            (Margin_Cross_Start => Start_Margin,
+            Margin_Cross_End => End_Margin,
+            Min_Cross => Min_Cross,
+            Max_Cross => Max_Cross,
+            Self => Stretch,
+            Cross_Definite => False,
+            others => <>);
+      begin
+         if Stretched_Cross (Line_Cross, I) /= 95.0 then
+            raise Program_Error with "Stretched_Cross failed for case 1";
+         end if;
+
+         --  Case 2: Line_Cross = 120, Start_Margin = 10, End_Margin = 15,
+         --  Min_Cross = 0, Max_Cross = 80, should produce 80
+         I.Max_Cross := 80.0;
+         if Stretched_Cross (Line_Cross, I) /= 80.0 then
+            raise Program_Error with "Stretched_Cross failed for case 2";
+         end if;
+
+         --  Case 3: Min_Cross = 110, Max_Cross = 200, should produce 110
+         I.Min_Cross := 110.0;
+         I.Max_Cross := 200.0;
+         if Stretched_Cross (Line_Cross, I) /= 110.0 then
+            raise Program_Error with "Stretched_Cross failed for case 3";
+         end if;
+
+         --  Case 4: Line_Cross = 50, Start_Margin = 40, End_margin = 30, Min_Cross = 0,
+         --  should produce 0
+         Line_Cross := 50.0;
+         I.Margin_Cross_Start := 40.0;
+         I.Margin_Cross_End := 30.0;
+         I.Min_Cross := 0.0;
+         if Stretched_Cross (Line_Cross, I) /= 0.0 then
+            raise Program_Error with "Stretched_Cross failed for case 4";
+         end if;
+
+         --  Case 5: Min_Cross = 10
+         I.Min_Cross := 10.0;
+         if Stretched_Cross (Line_Cross, I) /= 10.0 then
+            raise Program_Error with "Stretched_Cross failed for case 5";
+         end if;
+
+         --  Case 6: Line_cross = 120, Start_Margin = 0, End_Margin = 0, Min_Cross = 90,
+         --  Max_Cross = 60, should produce 90
+         Line_Cross := 120.0;
+         I.Margin_Cross_Start := 0.0;
+         I.Margin_Cross_End := 0.0;
+         I.Min_Cross := 90.0;
+         I.Max_Cross := 60.0;
+         if Stretched_Cross (Line_Cross, I) /= 90.0 then
+            raise Program_Error with "Stretched_Cross failed for case 6";
+         end if;
+
+         --  End of Stretched_Cross test cases
+      end;
 end Boxflex.Flex;
