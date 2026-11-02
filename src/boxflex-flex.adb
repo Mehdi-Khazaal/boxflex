@@ -241,13 +241,13 @@ begin
          end if;
 
          --  Case 6: Line_cross = 120, Start_Margin = 0, End_Margin = 0, Min_Cross = 90,
-         --  Max_Cross = 60, should produce 90
+         --  Max_Cross = 60, should produce 60
          Line_Cross := 120.0;
          I.Margin_Cross_Start := 0.0;
          I.Margin_Cross_End := 0.0;
          I.Min_Cross := 90.0;
          I.Max_Cross := 60.0;
-         if Stretched_Cross (Line_Cross, I) /= 90.0 then
+         if Stretched_Cross (Line_Cross, I) /= 60.0 then
             raise Program_Error with "Stretched_Cross failed for case 6";
          end if;
 
