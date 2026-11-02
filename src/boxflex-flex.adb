@@ -116,8 +116,17 @@ package body Boxflex.Flex with SPARK_Mode is
            (for all J in K .. Items'Last => Items (J) = Items'Loop_Entry (J));
 
          Items (K).Main  := Hypothetical_Main (Items (K));
-         Items (K).Cross :=
-           Clamp (Items (K).Content_Cross, Items (K).Min_Cross, Items (K).Max_Cross);
+
+         --  Cross is set to the stretched cross size if eligible, otherwise
+         --  it is set to the hypothetical cross size (clamped to the item's
+         --  min and max cross sizes).
+         if C.Wrap = No_Wrap and then Wants_Stretch (C, Items (K)) then
+            Items (K).Cross := Stretched_Cross (C.Cross, Items (K));
+         else
+            Items (K).Cross := Clamp (Items (K).Content_Cross,
+                                       Items (K).Min_Cross,
+                                       Items (K).Max_Cross);
+         end if;
 
          Cursor := Cursor + To_Units (Items (K).Margin_Main_Start);
          Items (K).Pos_Main  := Pos (Cursor);
