@@ -19,14 +19,6 @@ package body Boxflex.Flex with SPARK_Mode is
       (not I.Cross_Definite and then (I.Self = Stretch
       or else (I.Self = Auto and then C.Align = Stretch)));
 
-   --  Specification for Stretched_Cross: The result is the item's cross size when stretched
-   --  to fill the line's cross size, clamped to the item's min and max cross sizes. The result
-   --  is always >= I.Min_Cross and <= I.Max_Cross (if Max_Cross >= Min_Cross).
-   function Stretched_Cross (Line_Cross : Length; I : Item) return Length
-      with
-         Post => Stretched_Cross'Result >= I.Min_Cross and then
-            (I.Max_Cross < I.Min_Cross or else Stretched_Cross'Result <= I.Max_Cross);
-
    --  Implementation for Stretched_Cross
    function Stretched_Cross (Line_Cross : Length; I : Item) return Length
    is

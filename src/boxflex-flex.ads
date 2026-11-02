@@ -182,4 +182,16 @@ package Boxflex.Flex with SPARK_Mode is
    --  line always takes at least one item, so an item wider than the
    --  container overflows its own line instead of opening an empty one.
 
+   --  Helper function specifications
+private
+
+   --  Specification for Stretched_Cross: The result is the item's cross size when stretched
+   --  to fill the line's cross size, clamped to the item's min and max cross sizes. The result
+   --  is always >= I.Min_Cross and <= I.Max_Cross (if Max_Cross >= Min_Cross).
+   function Stretched_Cross (Line_Cross : Length; I : Item) return Length
+      with
+            Post =>  Stretched_Cross'Result >= I.Min_Cross
+                     and then (I.Max_Cross < I.Min_Cross
+                        or else Stretched_Cross'Result <= I.Max_Cross);
+
 end Boxflex.Flex;
