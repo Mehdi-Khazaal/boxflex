@@ -115,7 +115,55 @@ procedure Tests is
       Check ("resolve: packed",     It (2).Pos_Main = 55.0);
       Check ("resolve: in range",   Placed_In_Range (It (1)) and Placed_In_Range (It (2)));
 
-      --  pending, once grow is implemented:
+      --  Stretch test cases
+      --  Case 1: Line_Cross = 120, Start_Margin = 10, End_Margin = 15,
+      --  Min_Cross = 0, Max_Cross = 100, should produce 95
+      C := (Main => 200.0, Cross => 120.0, Wrap => No_Wrap, others => <>);
+      It (1) := (Margin_Cross_Start => 10.0,
+                   Margin_Cross_End => 15.0,
+                   Cross_Definite => False,
+                   Min_Cross => 0.0,
+                   Max_Cross => 200.0,
+                   Self => Stretch,
+                   others => <>);
+      Resolve (C, It);
+      Check ("stretch: cross size 95", It (1).Cross = 95.0);
+
+      --  Case 2: Line_Cross = 120, Start_Margin = 10, End_Margin = 15,
+      --  Min_Cross = 0, Max_Cross = 80, should produce 80
+      It (1).Max_Cross := 80.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 80", It (1).Cross = 80.0);
+      --  Case 3: Min_Cross = 110, Max_Cross = 200, should produce 110
+      It (1).Min_Cross := 110.0;
+      It (1).Max_Cross := 200.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 110", It (1).Cross = 110.0);
+
+      --  Case 4: Line_Cross = 50, Start_Margin = 40, End_margin = 30, Min_Cross = 0,
+      --  should produce 0
+      C.Cross := 50.0;
+      It (1).Margin_Cross_Start := 40.0;
+      It (1).Margin_Cross_End := 30.0;
+      It (1).Min_Cross := 0.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 0", It (1).Cross = 0.0);
+
+      --  Case 5: Min_Cross = 10
+      It (1).Min_Cross := 10.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 10", It (1).Cross = 10.0);
+
+      --  Case 6: Line_cross = 120, Start_Margin = 0, End_Margin = 0, Min_Cross = 90,
+      --  Max_Cross = 60, should produce 90
+      C.Cross := 120.0;
+      It (1).Margin_Cross_Start := 0.0;
+      It (1).Margin_Cross_End := 0.0;
+      It (1).Min_Cross := 90.0;
+      It (1).Max_Cross := 60.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 90", It (1).Cross = 90.0);
+
       --  It (1).Grow := 1.0; It (2).Grow := 1.0; It (2).Max_Main := Length'Last;
       --  Resolve (C, It);
       --  Check ("grow splits free space", It (1).Main = 72.5 and It (2).Main = 122.5);
