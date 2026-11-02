@@ -8,7 +8,7 @@ package body Boxflex.Flex with SPARK_Mode is
      (Units (L / Length'(Length'Small)));
 
    function Clamp (V, Lo, Hi : Length) return Length is
-     (if V < Lo then Lo elsif Hi >= Lo and then V > Hi then Hi else V);
+      (Length'Max (Lo, Length'Min (V, Hi)));
 
    --  Helper function to determine stretch eligibility
    function Wants_Stretch (C : Container; I : Item) return Boolean is
