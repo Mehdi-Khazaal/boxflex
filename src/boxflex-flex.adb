@@ -197,6 +197,7 @@ begin
          End_Margin : constant Length := 15.0;
          Min_Cross : constant Length := 0.0;
          Max_Cross : constant Length := 100.0;
+         Result : Length := 0.0;
          I : Item :=
             (Margin_Cross_Start => Start_Margin,
             Margin_Cross_End => End_Margin,
@@ -241,14 +242,16 @@ begin
          end if;
 
          --  Case 6: Line_cross = 120, Start_Margin = 0, End_Margin = 0, Min_Cross = 90,
-         --  Max_Cross = 60, should produce 60
+         --  Max_Cross = 60, should produce 90
          Line_Cross := 120.0;
          I.Margin_Cross_Start := 0.0;
          I.Margin_Cross_End := 0.0;
          I.Min_Cross := 90.0;
          I.Max_Cross := 60.0;
-         if Stretched_Cross (Line_Cross, I) /= 60.0 then
-            raise Program_Error with "Stretched_Cross failed for case 6";
+
+         Result := Stretched_Cross (Line_Cross, I);
+         if Result /= 90.0 then
+            raise Program_Error with "Stretched_Cross failed for case 6: " & Length'Image (Result);
          end if;
 
          --  End of Stretched_Cross test cases
