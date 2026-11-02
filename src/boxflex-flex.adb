@@ -10,6 +10,15 @@ package body Boxflex.Flex with SPARK_Mode is
    function Clamp (V, Lo, Hi : Length) return Length is
      (if V < Lo then Lo elsif Hi >= Lo and then V > Hi then Hi else V);
 
+   --  Helper function to determine stretch eligibility
+   function Wants_Stretch (C : Container; I : Item) return Boolean is
+      --  Stretch is only eligible if the cross size is not explicitly specified
+      --  (not I.Cross_Definite) and either the item explicitly requests to stretch or
+      --  the item inherits the stretch value from the container
+      --  (I.Self = Auto and C.Align = Stretch).
+      (not I.Cross_Definite and then (I.Self = Stretch
+      or else (I.Self = Auto and then C.Align = Stretch)));
+
    -----------------------
    -- Hypothetical_Main --
    -----------------------
@@ -103,4 +112,51 @@ package body Boxflex.Flex with SPARK_Mode is
       end loop;
    end Resolve;
 
+   --  Temporary self-test; todo remove after verification
+begin
+   declare
+      C : Container := (others => <>);
+      I : Item := (others => <>);
+   begin
+      --  Case 1: Defaults should produce Stretch
+      if not Wants_Stretch (C, I) then
+         raise Program_Error with "Wants_Stretch failed for default values";
+      end if;
+
+      --  Case 2: Explicit cross size prevents stretch
+      I.Cross_Definite := True;
+      if Wants_Stretch (C, I) then
+         raise Program_Error with "Wants_Stretch failed for explicit cross size";
+      end if;
+
+      --  Case 3: Explicit alignment overrides container properties
+      I.Cross_Definite := False;
+      C.Align := Stretch;
+      I.Self := Flex_Start;
+
+      if Wants_Stretch (C, I) then
+         raise Program_Error with "Wants_Stretch failed for non-stretch explicit alignment";
+      end if;
+
+      --  Case 4: Explicit stretch request overrides container
+      I.Self := Stretch;
+      C.Align := Center;
+
+      if not Wants_Stretch (C, I) then
+         raise Program_Error with "Wants stretch failed for explicit stretch request";
+      end if;
+
+      --  Case 5: Auto inherits container alignment
+      I.Self := Auto;
+
+      if Wants_Stretch (C, I) then
+         raise Program_Error with "Wants_Stretch failed to inherit container alignment";
+      end if;
+
+      C.Align := Stretch;
+
+      if not Wants_Stretch (C, I) then
+         raise Program_Error with "Wants_Stretch failed to inherit container alignment";
+      end if;
+   end;
 end Boxflex.Flex;
