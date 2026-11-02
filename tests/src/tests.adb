@@ -115,9 +115,49 @@ procedure Tests is
       Check ("resolve: packed",     It (2).Pos_Main = 55.0);
       Check ("resolve: in range",   Placed_In_Range (It (1)) and Placed_In_Range (It (2)));
 
+      --  Stretch eligibility tests
+      --  Case 1: C.Align = Stretch, I.Self = Auto,
+      --  I.Cross_Definite = False, Expected return 120
+      C.Cross := 120.0;
+      C.Align := Stretch;
+      It (1).Content_Cross := 30.0;
+      It (1).Self := Auto;
+      It (1).Cross_Definite := False;
+      Resolve (C, It);
+      Check ("stretch: eligible and size 120", It (1).Cross = 120.0);
+
+      --  Case 2: C.Align = Stretch, I.Self = Flex_Start,
+      --  I.Cross_Definite = False, Expected return 30
+      It (1).Self := Flex_Start;
+      Resolve (C, It);
+      Check ("stretch: not eligible with size 30", It (1).Cross = 30.0);
+
+      --  Case 3: C.Align = Center, I.Self = Stretch, I.Cross_Definite = False,
+      --  Expected return 120
+      C.Align := Center;
+      It (1).Self := Stretch;
+      Resolve (C, It);
+      Check ("stretch: eligible and size 120", It (1).Cross = 120.0);
+
+      --  Case 4: C.Align = Stretch, I.Self = Auto, I.Cross_Definite = True,
+      -- Expected return 30
+      C.Align := Stretch;
+      It (1).Self := Auto;
+      It (1).Cross_Definite := True;
+      Resolve (C, It);
+      Check ("stretch: not eligible with size 30", It (1).Cross = 30.0);
+
+      --  Case 5: C.Align = Center, I.Self = Auto, I.Cross_Definite = False,
+      --  Expected return 30
+      C.Align := Center;
+      It (1).Self := Auto;
+      It (1).Cross_Definite := False;
+      Resolve (C, It);
+      Check ("stretch: not eligible with size 30", It (1).Cross = 30.0);
+
       --  Stretch test cases
       --  Case 1: Line_Cross = 120, Start_Margin = 10, End_Margin = 15,
-      --  Min_Cross = 0, Max_Cross = 100, should produce 95
+      --  Min_Cross = 0, Max_Cross = 200, should produce 95
       C := (Main => 200.0, Cross => 120.0, Wrap => No_Wrap, others => <>);
       It (1) := (Margin_Cross_Start => 10.0,
                    Margin_Cross_End => 15.0,
@@ -164,6 +204,7 @@ procedure Tests is
       Resolve (C, It);
       Check ("stretch: cross size 90", It (1).Cross = 90.0);
 
+      --  pending: once grow and shrink are implemented
       --  It (1).Grow := 1.0; It (2).Grow := 1.0; It (2).Max_Main := Length'Last;
       --  Resolve (C, It);
       --  Check ("grow splits free space", It (1).Main = 72.5 and It (2).Main = 122.5);
