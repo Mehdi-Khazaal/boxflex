@@ -24,7 +24,7 @@ package body Boxflex.Flex with SPARK_Mode is
       (Length'Max (Lo, Length'Min (V, Hi)));
    --  Clamps values within a range, prioritizing the minval
 
-   function Clamp_Hi(V, Lo, Hi : Length) return Length is
+   function Clamp_Hi (V, Lo, Hi : Length) return Length is
       (Length'Min (Lo, Length'Max (V, Hi)));
 
    --  Helper function to determine stretch eligibility
