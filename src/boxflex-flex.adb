@@ -8,7 +8,32 @@ package body Boxflex.Flex with SPARK_Mode is
      (Units (L / Length'(Length'Small)));
 
    function Clamp (V, Lo, Hi : Length) return Length is
-     (if V < Lo then Lo elsif Hi >= Lo and then V > Hi then Hi else V);
+      (Length'Max (Lo, Length'Min (V, Hi)));
+
+   --  Helper function to determine stretch eligibility
+   function Wants_Stretch (C : Container; I : Item) return Boolean is
+      --  Stretch is only eligible if the cross size is not explicitly specified
+      --  (not I.Cross_Definite) and either the item explicitly requests to stretch or
+      --  the item inherits the stretch value from the container
+      --  (I.Self = Auto and C.Align = Stretch).
+      (not I.Cross_Definite and then (I.Self = Stretch
+      or else (I.Self = Auto and then C.Align = Stretch)));
+
+   --  Implementation for Stretched_Cross
+   function Stretched_Cross (Line_Cross : Length; I : Item) return Length
+   is
+      --  Convert the working variables to units
+      Line_U : constant Units := To_Units (Line_Cross);
+      Start_U : constant Units := To_Units (I.Margin_Cross_Start);
+      End_U : constant Units := To_Units (I.Margin_Cross_End);
+
+      --  Calculate the stretched cross size in units
+      Available_U : constant Units := Units'Max (0, Line_U - Start_U - End_U);
+      --  Convert this back to Length and clamp it to the item's min and max cross sizes
+      Available_L : constant Length := Length'(Length'Small) * Integer (Available_U);
+   begin
+      return Clamp (Available_L, I.Min_Cross, I.Max_Cross);
+   end Stretched_Cross;
 
    -----------------------
    -- Hypothetical_Main --
@@ -91,8 +116,17 @@ package body Boxflex.Flex with SPARK_Mode is
            (for all J in K .. Items'Last => Items (J) = Items'Loop_Entry (J));
 
          Items (K).Main  := Hypothetical_Main (Items (K));
-         Items (K).Cross :=
-           Clamp (Items (K).Content_Cross, Items (K).Min_Cross, Items (K).Max_Cross);
+
+         --  Cross is set to the stretched cross size if eligible, otherwise
+         --  it is set to the hypothetical cross size (clamped to the item's
+         --  min and max cross sizes).
+         if C.Wrap = No_Wrap and then Wants_Stretch (C, Items (K)) then
+            Items (K).Cross := Stretched_Cross (C.Cross, Items (K));
+         else
+            Items (K).Cross := Clamp (Items (K).Content_Cross,
+                                       Items (K).Min_Cross,
+                                       Items (K).Max_Cross);
+         end if;
 
          Cursor := Cursor + To_Units (Items (K).Margin_Main_Start);
          Items (K).Pos_Main  := Pos (Cursor);
@@ -102,5 +136,4 @@ package body Boxflex.Flex with SPARK_Mode is
                    + To_Units (Items (K).Margin_Main_End) + Gap;
       end loop;
    end Resolve;
-
 end Boxflex.Flex;
