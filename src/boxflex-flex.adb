@@ -122,7 +122,11 @@ package body Boxflex.Flex with SPARK_Mode is
             Post =>
                Pos'Result >= 0.0
                and then Pos'Result <= Max_Pos
-               and then To_Units (Length (Pos'Result)) = Units'Min (U, Max_U);
+               and then
+               (if U < Max_U then
+                  To_Units (Pos'Result) = U
+               else
+                  Pos'Result = Max_Pos);
       --  Convert from Units to Coord, saturating at Max_Pos.
 
    begin
