@@ -84,27 +84,46 @@ package body Boxflex.Flex with SPARK_Mode is
       end loop;
    end Form_Lines;
 
-   -------------
-   -- Resolve --
-   -------------
+   Max_U  : constant Units := To_Units (Length'Last);
+   --  Max_Pos = Coord'Last - Length'Last, and Length'Last = 2**22,
+   --  so a position of at most Length'Last (as a Coord) is safe.
+   function Pos (U : Units) return Coord is
+      (if U > Max_U then Max_Pos else Coord'(Coord'Small) * Integer (U))
+      with Pre => U >= 0;
+   --  Units to Coord, saturating at Max_Pos.
+   procedure Start_Sizes (Items : in out Item_Array);
+   procedure Flex_Lengths (C : Container; Items : in out Item_Array);
+   procedure Cross_Sizes (C : Container; Items : in out Item_Array);
+   procedure Main_Positions (C : Container; Items : in out Item_Array);
+   procedure Cross_Positions (C : Container; Items : in out Item_Array);
 
-   --  PLACEHOLDER. Packs items in order at their hypothetical main
-   --  size, Flex_Start on both axes, no grow, no shrink, no wrap, no
-   --  reversal. Replace with steps 1 to 7 of the spec (see the
-   --  package spec and ARCHITECTURE.md).
+   procedure Start_Sizes (Items : in out Item_Array) is
+   begin
+      for K in Items'Range loop
+         Items (K).Main  := Hypothetical_Main (Items (K));
+         Items (K).Cross := Clamp (Items (K).Content_Cross,
+                                    Items (K).Min_Cross,
+                                    Items (K).Max_Cross);
+      end loop;
+   end Start_Sizes;
 
-   procedure Resolve (C : Container; Items : in out Item_Array) is
+   procedure Flex_Lengths (C : Container; Items : in out Item_Array) is
+   begin
+      null;
+   end Flex_Lengths;
+
+   procedure Cross_Sizes (C : Container; Items : in out Item_Array) is
+   begin
+      for K in Items'Range loop
+         if C.Wrap = No_Wrap and then Wants_Stretch (C, Items (K)) then
+            Items (K).Cross := Stretched_Cross (C.Cross, Items (K));
+         end if;
+      end loop;
+   end Cross_Sizes;
+
+   procedure Main_Positions (C : Container; Items : in out Item_Array) is
       Cursor : Units := 0;
-      Gap    : constant Units := To_Units (C.Main_Gap);
-      Max_U  : constant Units := To_Units (Length'Last);
-      --  Max_Pos = Coord'Last - Length'Last, and Length'Last = 2**22,
-      --  so a position of at most Length'Last (as a Coord) is safe.
-
-      function Pos (U : Units) return Coord is
-        (if U > Max_U then Max_Pos else Coord'(Coord'Small) * Integer (U))
-        with Pre => U >= 0;
-      --  Units to Coord, saturating at Max_Pos.
-
+      Gap : constant Units := To_Units (C.Main_Gap);
    begin
       for K in Items'Range loop
          pragma Loop_Invariant (Cursor >= 0);
@@ -115,25 +134,34 @@ package body Boxflex.Flex with SPARK_Mode is
          pragma Loop_Invariant
            (for all J in K .. Items'Last => Items (J) = Items'Loop_Entry (J));
 
-         Items (K).Main  := Hypothetical_Main (Items (K));
-
-         --  Cross is set to the stretched cross size if eligible, otherwise
-         --  it is set to the hypothetical cross size (clamped to the item's
-         --  min and max cross sizes).
-         if C.Wrap = No_Wrap and then Wants_Stretch (C, Items (K)) then
-            Items (K).Cross := Stretched_Cross (C.Cross, Items (K));
-         else
-            Items (K).Cross := Clamp (Items (K).Content_Cross,
-                                       Items (K).Min_Cross,
-                                       Items (K).Max_Cross);
-         end if;
-
          Cursor := Cursor + To_Units (Items (K).Margin_Main_Start);
          Items (K).Pos_Main  := Pos (Cursor);
-         Items (K).Pos_Cross := Pos (To_Units (Items (K).Margin_Cross_Start));
 
          Cursor := Cursor + To_Units (Items (K).Main)
                    + To_Units (Items (K).Margin_Main_End) + Gap;
       end loop;
+   end Main_Positions;
+
+   procedure Cross_Positions (C : Container; Items : in out Item_Array) is
+      pragma Unreferenced (C);
+   begin
+      for K in Items'Range loop
+         Items (K).Pos_Cross := Pos (To_Units (Items (K).Margin_Cross_Start));
+      end loop;
+   end Cross_Positions;
+
+   -------------
+   -- Resolve --
+   -------------
+
+   --  One call per step of the algorithm. See the package spec.
+
+   procedure Resolve (C : Container; Items : in out Item_Array) is
+   begin
+      Start_Sizes (Items);
+      Flex_Lengths (C, Items);
+      Cross_Sizes (C, Items);
+      Main_Positions (C, Items);
+      Cross_Positions (C, Items);
    end Resolve;
 end Boxflex.Flex;
