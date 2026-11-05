@@ -146,9 +146,12 @@ package body Boxflex.Flex with SPARK_Mode is
          return;
       end if;
 
-      --  3. Each item gets Free * (its grow / total grow).
+      --  3. Each item gets Free * (its grow / total grow). If the factors add
+      --  up to less than 1, divide by 1 instead, so only that part of the
+      --  free space is handed out (CSS spec, section 9.7).
       for K in Items'Range loop
-         Share := Free * Factor_Units (Items (K).Grow) / Total_Grow;
+         Share := Free * Factor_Units (Items (K).Grow)
+                  / Units'Max (Total_Grow, Factor_Units (1.0));
          Items (K).Main := To_Length (To_Units (Items (K).Main) + Share);
       end loop;
    end Flex_Lengths;
