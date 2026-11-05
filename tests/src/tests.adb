@@ -203,11 +203,6 @@ procedure Tests is
       It (1).Max_Cross := 60.0;
       Resolve (C, It);
       Check ("stretch: cross size 90", It (1).Cross = 90.0);
-
-      --  pending: once grow and shrink are implemented
-      --  It (1).Grow := 1.0; It (2).Grow := 1.0; It (2).Max_Main := Length'Last;
-      --  Resolve (C, It);
-      --  Check ("grow splits free space", It (1).Main = 72.5 and It (2).Main = 122.5);
    end Test_Flex;
 
    ---------------------------------------------------------------------
@@ -255,14 +250,14 @@ procedure Tests is
       Check ("structure untouched", Child_Count (T, R) = 2);
       Check ("children placed", Placed (Layout_Of (T, A)) and Placed (Layout_Of (T, B)));
 
-      --  pending: two equal growers split the main axis
-      --  Check ("A is left half",  Layout_Of (T, A) = Make (0.0,   0.0, 100.0, 100.0));
-      --  Check ("B is right half", Layout_Of (T, B) = Make (100.0, 0.0, 100.0, 100.0));
-      --  Check ("siblings do not overlap",
-      --         not Overlaps (Layout_Of (T, A), Layout_Of (T, B)));
-      --  Check ("children inside parent",
-      --         Contains (Layout_Of (T, R), Layout_Of (T, A))
-      --         and Contains (Layout_Of (T, R), Layout_Of (T, B)));
+      --  Two equal growers split the main axis.
+      Check ("A is left half",  Layout_Of (T, A) = Make (0.0,   0.0, 100.0, 100.0));
+      Check ("B is right half", Layout_Of (T, B) = Make (100.0, 0.0, 100.0, 100.0));
+      Check ("siblings do not overlap",
+             not Overlaps (Layout_Of (T, A), Layout_Of (T, B)));
+      Check ("children inside parent",
+             Contains (Layout_Of (T, R), Layout_Of (T, A))
+             and Contains (Layout_Of (T, R), Layout_Of (T, B)));
    end Test_Layout;
 
 begin

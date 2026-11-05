@@ -91,6 +91,21 @@ package body Boxflex.Flex with SPARK_Mode is
       (if U > Max_U then Max_Pos else Coord'(Coord'Small) * Integer (U))
       with Pre => U >= 0;
    --  Units to Coord, saturating at Max_Pos.
+
+   Units_Per_Px : constant Units := Units (1.0 / Length'Small);
+   --  How many units make one pixel (256 today). Worked out, never typed in.
+
+   function To_Length (U : Units) return Length is
+     (Length (U / Units_Per_Px) + Length'(Length'Small) * Integer (U mod Units_Per_Px))
+     with Pre => U >= 0 and then U <= Max_U;
+   --  Units back to a Length. Whole pixels stay in Units; only the leftover
+   --  fraction (always under Units_Per_Px) goes through Integer, so this
+   --  also works where Integer is only 16 bits.
+
+   function Factor_Units (R : Ratio) return Units is
+     (Units (R / Ratio'(Ratio'Small)));
+   --  A grow or shrink factor counted in steps of Ratio'Small, so 1.0 = 1024.
+
    procedure Start_Sizes (Items : in out Item_Array);
    procedure Flex_Lengths (C : Container; Items : in out Item_Array);
    procedure Cross_Sizes (C : Container; Items : in out Item_Array);
@@ -108,8 +123,34 @@ package body Boxflex.Flex with SPARK_Mode is
    end Start_Sizes;
 
    procedure Flex_Lengths (C : Container; Items : in out Item_Array) is
+      Gap        : constant Units := To_Units (C.Main_Gap);
+      Used       : Units := 0;
+      Total_Grow : Units := 0;
+      Free       : Units;
+      Share      : Units;
    begin
-      null;
+      --  1. Space the items take now, and the sum of their grow factors.
+      for K in Items'Range loop
+         Used := Used + To_Units (Items (K).Margin_Main_Start)
+                      + To_Units (Items (K).Main)
+                      + To_Units (Items (K).Margin_Main_End);
+         if K > Items'First then
+            Used := Used + Gap;
+         end if;
+         Total_Grow := Total_Grow + Factor_Units (Items (K).Grow);
+      end loop;
+
+      --  2. Space left over. Nothing to share if none is left or nobody grows.
+      Free := To_Units (C.Main) - Used;
+      if Free <= 0 or else Total_Grow = 0 then
+         return;
+      end if;
+
+      --  3. Each item gets Free * (its grow / total grow).
+      for K in Items'Range loop
+         Share := Free * Factor_Units (Items (K).Grow) / Total_Grow;
+         Items (K).Main := To_Length (To_Units (Items (K).Main) + Share);
+      end loop;
    end Flex_Lengths;
 
    procedure Cross_Sizes (C : Container; Items : in out Item_Array) is
