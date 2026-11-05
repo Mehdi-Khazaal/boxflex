@@ -148,6 +148,9 @@ package body Boxflex.Flex with SPARK_Mode is
       Remaining  : Units;
       Factor_Sum : Units;
       Weight_Sum : Units;
+      Running    : Units;
+      Given      : Units;
+      Share      : Units;
       Capped     : Units;
       Violation  : Units;
       Clamped    : Units;
@@ -228,17 +231,26 @@ package body Boxflex.Flex with SPARK_Mode is
          --  which keeps their proportions. In any normal layout Scale is 1.
          Scale := Weight_Sum / (Units'Last / (abs Remaining + 1)) + 1;
 
-         --  c. Share it out by weight. d. Clamp to min and max, and add up
-         --  how much the clamping moved things (the total violation).
+         --  c. Share it out by weight, using running totals: each item gets
+         --  the share of everything up to and including itself, minus what
+         --  was already given. Rounding never piles up, and the last item's
+         --  running total is all of Remaining, so nothing is left over.
+         --  d. Clamp to min and max, and add up how much the clamping moved
+         --  things (the total violation).
          Violation := 0;
+         Running   := 0;
+         Given     := 0;
          for K in Items'Range loop
             if not Frozen (K) then
-               Target (K) := Base (K) + Remaining * (Weight (K) / Scale)
-                                        / Units'Max (Weight_Sum / Scale, 1);
-               Clamped    := Clamp_U (Target (K), To_Units (Items (K).Min_Main),
-                                      To_Units (Items (K).Max_Main));
+               Running    := Running + Weight (K);
+               Share      := Remaining * (Running / Scale)
+                               / Units'Max (Weight_Sum / Scale, 1) - Given;
+               Given      := Given + Share;
+               Target (K) := Base (K) + Share;
+               Clamped := Clamp_U (Target (K), To_Units (Items (K).Min_Main),
+                                    To_Units (Items (K).Max_Main));
                Change (K) := Clamped - Target (K);
-               Violation  := Violation + Change (K);
+               Violation := Violation + Change (K);
                Target (K) := Clamped;
             end if;
          end loop;
