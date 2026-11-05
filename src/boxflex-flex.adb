@@ -39,9 +39,12 @@ package body Boxflex.Flex with SPARK_Mode is
    -- Hypothetical_Main --
    -----------------------
 
+   function Flex_Base (I : Item) return Length is
+     (if I.Basis_Definite then I.Basis else I.Content_Main);
+   --  The flex base size: what the item asks for before min and max.
+
    function Hypothetical_Main (I : Item) return Length is
-     (Clamp ((if I.Basis_Definite then I.Basis else I.Content_Main),
-             I.Min_Main, I.Max_Main));
+     (Clamp (Flex_Base (I), I.Min_Main, I.Max_Main));
 
    ----------------
    -- Form_Lines --
@@ -105,6 +108,12 @@ package body Boxflex.Flex with SPARK_Mode is
    function Factor_Units (R : Ratio) return Units is
      (Units (R / Ratio'(Ratio'Small)));
    --  A grow or shrink factor counted in steps of Ratio'Small, so 1.0 = 1024.
+   function Clamp_U (V, Lo, Hi : Units) return Units is
+     (Units'Max (Lo, Units'Min (V, Hi)));
+   --  Clamp in units: keep V inside Lo .. Hi. Lo (the min) wins if they cross.
+
+   type Units_Array is array (Positive range <>) of Units;
+   type Flag_Array is array (Positive range <>) of Boolean;
 
    procedure Start_Sizes (Items : in out Item_Array);
    procedure Flex_Lengths (C : Container; Items : in out Item_Array);
@@ -123,36 +132,106 @@ package body Boxflex.Flex with SPARK_Mode is
    end Start_Sizes;
 
    procedure Flex_Lengths (C : Container; Items : in out Item_Array) is
-      Gap        : constant Units := To_Units (C.Main_Gap);
-      Used       : Units := 0;
-      Total_Grow : Units := 0;
-      Free       : Units;
-      Share      : Units;
+      One        : constant Units := Factor_Units (1.0);
+      Space      : constant Units := To_Units (C.Main);
+      Base       : Units_Array (Items'Range) := [others => 0];
+      Target     : Units_Array (Items'Range) := [others => 0];
+      Change     : Units_Array (Items'Range) := [others => 0];
+      Frozen     : Flag_Array (Items'Range) := [others => False];
+      Outer      : Units := 0;
+      Hypo_Sum   : Units := 0;
+      Initial    : Units := 0;
+      Remaining  : Units;
+      Factor_Sum : Units;
+      Violation  : Units;
+      Clamped    : Units;
    begin
-      --  1. Space the items take now, and the sum of their grow factors.
+      --  Margins and gaps, each item's flex base size, and its hypothetical
+      --  size (Start_Sizes already put that in Main).
       for K in Items'Range loop
-         Used := Used + To_Units (Items (K).Margin_Main_Start)
-                      + To_Units (Items (K).Main)
-                      + To_Units (Items (K).Margin_Main_End);
+         Outer := Outer + To_Units (Items (K).Margin_Main_Start)
+                        + To_Units (Items (K).Margin_Main_End);
          if K > Items'First then
-            Used := Used + Gap;
+            Outer := Outer + To_Units (C.Main_Gap);
          end if;
-         Total_Grow := Total_Grow + Factor_Units (Items (K).Grow);
+         Base (K)   := To_Units (Flex_Base (Items (K)));
+         Target (K) := To_Units (Items (K).Main);
+         Hypo_Sum   := Hypo_Sum + Target (K);
       end loop;
 
-      --  2. Space left over. Nothing to share if none is left or nobody grows.
-      Free := To_Units (C.Main) - Used;
-      if Free <= 0 or else Total_Grow = 0 then
+      --  1. Grow only if the hypothetical sizes leave space. (Shrink: later.)
+      if Outer + Hypo_Sum >= Space then
          return;
       end if;
 
-      --  3. Each item gets Free * (its grow / total grow). If the factors add
-      --  up to less than 1, divide by 1 instead, so only that part of the
-      --  free space is handed out (CSS spec, section 9.7).
+      --  2. Freeze items that cannot grow: grow 0, or a max below the base.
+      --  They keep their hypothetical size.
       for K in Items'Range loop
-         Share := Free * Factor_Units (Items (K).Grow)
-                  / Units'Max (Total_Grow, Factor_Units (1.0));
-         Items (K).Main := To_Length (To_Units (Items (K).Main) + Share);
+         if Items (K).Grow = 0.0 or else Base (K) > Target (K) then
+            Frozen (K) := True;
+         end if;
+      end loop;
+
+      --  4. Share out, freeze whoever went past a limit, repeat. Every round
+      --  freezes at least one item, so one round per item is always enough.
+      for Round in Items'Range loop
+         --  a. Stop once every item is frozen.
+         exit when (for all K in Items'Range => Frozen (K));
+
+         --  b. Free space now: frozen items count at their target, the
+         --  others at their base. Also add up the unfrozen grow factors.
+         Remaining  := Space - Outer;
+         Factor_Sum := 0;
+         for K in Items'Range loop
+            if Frozen (K) then
+               Remaining := Remaining - Target (K);
+            else
+               Remaining  := Remaining - Base (K);
+               Factor_Sum := Factor_Sum + Factor_Units (Items (K).Grow);
+            end if;
+         end loop;
+
+         --  3. The first round's free space is the spec's initial free space.
+         if Round = Items'First then
+            Initial := Remaining;
+         end if;
+
+         --  Factors under 1 only get that part of the initial free space.
+         if Factor_Sum < One then
+            Remaining := Units'Min (Remaining, Initial * Factor_Sum / One);
+         end if;
+
+         --  c. Share it out. d. Clamp to min and max, and add up how much
+         --  the clamping moved things (the total violation).
+         Violation := 0;
+         for K in Items'Range loop
+            if not Frozen (K) then
+               Target (K) := Base (K)
+                 + Remaining * Factor_Units (Items (K).Grow) / Factor_Sum;
+               Clamped    := Clamp_U (Target (K), To_Units (Items (K).Min_Main),
+                                      To_Units (Items (K).Max_Main));
+               Change (K) := Clamped - Target (K);
+               Violation  := Violation + Change (K);
+               Target (K) := Clamped;
+            end if;
+         end loop;
+
+         --  e. Freeze: everyone if nothing was clamped; else only the items
+         --  clamped the same way as the total (min if up, max if down).
+         for K in Items'Range loop
+            if not Frozen (K)
+              and then (Violation = 0
+                        or else (Violation > 0 and then Change (K) > 0)
+                        or else (Violation < 0 and then Change (K) < 0))
+            then
+               Frozen (K) := True;
+            end if;
+         end loop;
+      end loop;
+
+      --  5. The targets are the final main sizes.
+      for K in Items'Range loop
+         Items (K).Main := To_Length (Target (K));
       end loop;
    end Flex_Lengths;
 
