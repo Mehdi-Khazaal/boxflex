@@ -136,13 +136,19 @@ package body Boxflex.Flex with SPARK_Mode is
       Space      : constant Units := To_Units (C.Main);
       Base       : Units_Array (Items'Range) := [others => 0];
       Target     : Units_Array (Items'Range) := [others => 0];
+      Factor     : Units_Array (Items'Range) := [others => 0];
+      Weight     : Units_Array (Items'Range) := [others => 0];
       Change     : Units_Array (Items'Range) := [others => 0];
       Frozen     : Flag_Array (Items'Range) := [others => False];
       Outer      : Units := 0;
       Hypo_Sum   : Units := 0;
       Initial    : Units := 0;
+      Growing    : Boolean;
+      Scale      : Units;
       Remaining  : Units;
       Factor_Sum : Units;
+      Weight_Sum : Units;
+      Capped     : Units;
       Violation  : Units;
       Clamped    : Units;
    begin
@@ -159,15 +165,24 @@ package body Boxflex.Flex with SPARK_Mode is
          Hypo_Sum   := Hypo_Sum + Target (K);
       end loop;
 
-      --  1. Grow only if the hypothetical sizes leave space. (Shrink: later.)
-      if Outer + Hypo_Sum >= Space then
-         return;
-      end if;
+      --  1. Grow if the hypothetical sizes leave space, otherwise shrink.
+      Growing := Outer + Hypo_Sum < Space;
 
-      --  2. Freeze items that cannot grow: grow 0, or a max below the base.
-      --  They keep their hypothetical size.
+      --  Each item's factor and weight. Growing shares by grow factor.
+      --  Shrinking shares by shrink factor times base size, so a big item
+      --  gives up more than a small one.
       for K in Items'Range loop
-         if Items (K).Grow = 0.0 or else Base (K) > Target (K) then
+         Factor (K) := Factor_Units (if Growing then Items (K).Grow else Items (K).Shrink);
+         Weight (K) := (if Growing then Factor (K) else Factor (K) * Base (K));
+      end loop;
+
+      --  2. Freeze items that cannot flex: factor 0, or a limit already
+      --  past the base (a max below it when growing, a min above it when
+      --  shrinking). They keep their hypothetical size.
+      for K in Items'Range loop
+         if Factor (K) = 0
+           or else (if Growing then Base (K) > Target (K) else Base (K) < Target (K))
+         then
             Frozen (K) := True;
          end if;
       end loop;
@@ -179,15 +194,18 @@ package body Boxflex.Flex with SPARK_Mode is
          exit when (for all K in Items'Range => Frozen (K));
 
          --  b. Free space now: frozen items count at their target, the
-         --  others at their base. Also add up the unfrozen grow factors.
+         --  others at their base. Negative when shrinking. Also add up the
+         --  unfrozen factors and weights.
          Remaining  := Space - Outer;
          Factor_Sum := 0;
+         Weight_Sum := 0;
          for K in Items'Range loop
             if Frozen (K) then
                Remaining := Remaining - Target (K);
             else
                Remaining  := Remaining - Base (K);
-               Factor_Sum := Factor_Sum + Factor_Units (Items (K).Grow);
+               Factor_Sum := Factor_Sum + Factor (K);
+               Weight_Sum := Weight_Sum + Weight (K);
             end if;
          end loop;
 
@@ -196,18 +214,27 @@ package body Boxflex.Flex with SPARK_Mode is
             Initial := Remaining;
          end if;
 
-         --  Factors under 1 only get that part of the initial free space.
+         --  Factors under 1 only get that part of the initial free space,
+         --  if that is smaller in size (by abs, since it can be negative).
          if Factor_Sum < One then
-            Remaining := Units'Min (Remaining, Initial * Factor_Sum / One);
+            Capped := Initial * Factor_Sum / One;
+            if abs Capped < abs Remaining then
+               Remaining := Capped;
+            end if;
          end if;
 
-         --  c. Share it out. d. Clamp to min and max, and add up how much
-         --  the clamping moved things (the total violation).
+         --  Safety valve: with huge sizes, Remaining * Weight could pass 64
+         --  bits. Scale then divides every weight by the same number first,
+         --  which keeps their proportions. In any normal layout Scale is 1.
+         Scale := Weight_Sum / (Units'Last / (abs Remaining + 1)) + 1;
+
+         --  c. Share it out by weight. d. Clamp to min and max, and add up
+         --  how much the clamping moved things (the total violation).
          Violation := 0;
          for K in Items'Range loop
             if not Frozen (K) then
-               Target (K) := Base (K)
-                 + Remaining * Factor_Units (Items (K).Grow) / Factor_Sum;
+               Target (K) := Base (K) + Remaining * (Weight (K) / Scale)
+                                        / Units'Max (Weight_Sum / Scale, 1);
                Clamped    := Clamp_U (Target (K), To_Units (Items (K).Min_Main),
                                       To_Units (Items (K).Max_Main));
                Change (K) := Clamped - Target (K);
