@@ -267,6 +267,57 @@ procedure Tests is
       Resolve (C, It);
       Check ("grow: factors under 1 after a freeze",
              It (1).Main = 20.0 and then It (2).Main = 50.0);
+      --  Shrink: the items ask for more than the row has, so they give
+      --  space back. Each gives in proportion to shrink factor x base size.
+
+      --  Case 7: A wants 100, B wants 300, in 200 px: 200 too much.
+      --  Both shrink 1, so B (3 times bigger) gives 3 times more:
+      --  A gives 50, B gives 150.
+      It := [1 => (Basis => 100.0, Basis_Definite => True, others => <>),
+             2 => (Basis => 300.0, Basis_Definite => True, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: by base size", It (1).Main = 50.0 and then It (2).Main = 150.0);
+      Check ("shrink: B starts after A", It (2).Pos_Main = 50.0);
+
+      --  Case 8: same size (150 each, 100 too much), but B has shrink 3,
+      --  so it gives 3 times more: A gives 25, B gives 75.
+      It := [1 => (Basis => 150.0, Basis_Definite => True, others => <>),
+             2 => (Basis => 150.0, Basis_Definite => True, Shrink => 3.0, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: by factor", It (1).Main = 125.0 and then It (2).Main = 75.0);
+
+      --  Case 9: shrink 0 means never shrink. A keeps 150, B gives all 100.
+      It := [1 => (Basis => 150.0, Basis_Definite => True, Shrink => 0.0, others => <>),
+             2 => (Basis => 150.0, Basis_Definite => True, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: factor 0", It (1).Main = 150.0 and then It (2).Main = 50.0);
+
+      --  Case 10: a min stops an item. Three items of 200 in 300 px would
+      --  each give 100, but A cannot go under 150: A freezes at 150, and
+      --  B and C give the rest (125 each).
+      Three := [1 => (Basis => 200.0, Basis_Definite => True, Min_Main => 150.0,
+                      others => <>),
+                others => (Basis => 200.0, Basis_Definite => True, others => <>)];
+      Resolve (C300, Three);
+      Check ("shrink: min freezes",
+             Three (1).Main = 150.0 and then Three (2).Main = 75.0
+             and then Three (3).Main = 75.0);
+
+      --  Case 11: A asks for 50 but its min is 150, so it cannot shrink at
+      --  all and is frozen at 150 before sharing starts. B gives 50.
+      It := [1 => (Basis => 50.0, Basis_Definite => True, Min_Main => 150.0,
+                   others => <>),
+             2 => (Basis => 100.0, Basis_Definite => True, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: min above basis", It (1).Main = 150.0 and then It (2).Main = 50.0);
+
+      --  Case 12: shrink factors under 1 (0.25 + 0.25 = 0.5): only half of
+      --  the 100 px gets taken back, 25 from each, and the row overflows.
+      It := [1 => (Basis => 150.0, Basis_Definite => True, Shrink => 0.25, others => <>),
+             2 => (Basis => 150.0, Basis_Definite => True, Shrink => 0.25, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: factors under 1",
+             It (1).Main = 125.0 and then It (2).Main = 125.0);
    end Test_Grow_Shrink;
 
    ---------------------------------------------------------------------
