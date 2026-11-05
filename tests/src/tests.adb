@@ -223,6 +223,13 @@ procedure Tests is
       Resolve (C, It);
       Check ("grow: equal split", It (1).Main = 72.5 and then It (2).Main = 122.5);
       Check ("grow: B starts after A", It (2).Pos_Main = 77.5);
+      --  Case 2: the grow factors add up to less than 1 (0.25 + 0.5 = 0.75),
+      --  so only that part of the free space is handed out:
+      --  A gets 200 * 0.25 = 50, B gets 200 * 0.5 = 100, and 50 px stay empty.
+      It := [1 => (Basis_Definite => True, Grow => 0.25, others => <>),
+             2 => (Basis_Definite => True, Grow => 0.5, others => <>)];
+      Resolve (C, It);
+      Check ("grow: factors under 1", It (1).Main = 50.0 and then It (2).Main = 100.0);
    end Test_Grow_Shrink;
 
    ---------------------------------------------------------------------
