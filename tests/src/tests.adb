@@ -211,6 +211,26 @@ procedure Tests is
    end Test_Flex;
 
    ---------------------------------------------------------------------
+   --  Grow and shrink (step 3 of the algorithm)
+   ---------------------------------------------------------------------
+
+   procedure Test_Grow_Shrink is
+      use Boxflex.Flex;
+      C  : constant Container := (Main => 200.0, Cross => 100.0, others => <>);
+      It : Item_Array (1 .. 2);
+   begin
+      --  Case 1: 200 px row. A wants 50 + 5 px margin, B wants 100.
+      --  Free space = 200 - 155 = 45, split 1 : 1, so 22.5 each.
+      It := [1 => (Basis => 50.0, Basis_Definite => True,
+                   Margin_Main_Start => 5.0, Grow => 1.0, others => <>),
+             2 => (Basis => 100.0, Basis_Definite => True,
+                   Grow => 1.0, others => <>)];
+      Resolve (C, It);
+      Check ("grow: equal split", It (1).Main = 72.5 and then It (2).Main = 122.5);
+      Check ("grow: B starts after A", It (2).Pos_Main = 77.5);
+   end Test_Grow_Shrink;
+
+   ---------------------------------------------------------------------
    --  Layout (the tree walk)
    ---------------------------------------------------------------------
 
@@ -249,6 +269,7 @@ begin
    Test_Geometry;
    Test_Tree;
    Test_Flex;
+   Test_Grow_Shrink;
    Test_Layout;
 
    New_Line;
