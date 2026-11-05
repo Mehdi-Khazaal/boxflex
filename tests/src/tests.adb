@@ -318,6 +318,23 @@ procedure Tests is
       Resolve (C, It);
       Check ("shrink: factors under 1",
              It (1).Main = 125.0 and then It (2).Main = 125.0);
+
+      --  Leftovers: 200 px in three equal shares is 66.67 each, which is
+      --  not a whole number of 1/256 px steps. Rounding each share down
+      --  would leave the row 2 steps short (grow) or 1 step too wide
+      --  (shrink). The sizes must add up to the row exactly, so the last
+      --  item ends right at 200.
+      Three := [others => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C, Three);
+      Check ("grow: sizes add up to the row",
+             Three (1).Main + Three (2).Main + Three (3).Main = 200.0
+             and then Three (3).Pos_Main + Three (3).Main = 200.0);
+
+      Three := [others => (Basis => 100.0, Basis_Definite => True, others => <>)];
+      Resolve (C, Three);
+      Check ("shrink: sizes add up to the row",
+             Three (1).Main + Three (2).Main + Three (3).Main = 200.0
+             and then Three (3).Pos_Main + Three (3).Main = 200.0);
    end Test_Grow_Shrink;
 
    ---------------------------------------------------------------------
