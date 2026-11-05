@@ -211,8 +211,10 @@ procedure Tests is
 
    procedure Test_Grow_Shrink is
       use Boxflex.Flex;
-      C  : constant Container := (Main => 200.0, Cross => 100.0, others => <>);
-      It : Item_Array (1 .. 2);
+      C     : constant Container := (Main => 200.0, Cross => 100.0, others => <>);
+      C300  : constant Container := (Main => 300.0, Cross => 100.0, others => <>);
+      It    : Item_Array (1 .. 2);
+      Three : Item_Array (1 .. 3);
    begin
       --  Case 1: 200 px row. A wants 50 + 5 px margin, B wants 100.
       --  Free space = 200 - 155 = 45, split 1 : 1, so 22.5 each.
@@ -230,6 +232,41 @@ procedure Tests is
              2 => (Basis_Definite => True, Grow => 0.5, others => <>)];
       Resolve (C, It);
       Check ("grow: factors under 1", It (1).Main = 50.0 and then It (2).Main = 100.0);
+      --  Case 3: a max stops an item. All three start at 0 and grow 1 in 300 px,
+      --  so 100 each, but A has max 50: A freezes at 50, and B and C share
+      --  the other 250 (125 each).
+      Three := [1 => (Basis_Definite => True, Grow => 1.0, Max_Main => 50.0, others => <>),
+                others => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C300, Three);
+      Check ("grow: max freezes",
+             Three (1).Main = 50.0 and then Three (2).Main = 125.0
+             and then Three (3).Main = 125.0);
+
+      --  Case 4: a min holds an item up. 100 each would leave A under its
+      --  min of 150: A freezes at 150, and B and C share the other 150.
+      Three := [1 => (Basis_Definite => True, Grow => 1.0, Min_Main => 150.0, others => <>),
+                others => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C300, Three);
+      Check ("grow: min freezes",
+             Three (1).Main = 150.0 and then Three (2).Main = 75.0
+             and then Three (3).Main = 75.0);
+
+      --  Case 5: A asks for 100 but its max is 50, so it cannot grow at all
+      --  and is frozen at 50 before sharing starts. B gets the other 150.
+      It := [1 => (Basis => 100.0, Basis_Definite => True, Grow => 1.0,
+                   Max_Main => 50.0, others => <>),
+             2 => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C, It);
+      Check ("grow: max below basis", It (1).Main = 50.0 and then It (2).Main = 150.0);
+
+      --  Case 6: factors under 1 after a freeze. A (grow 0.5, max 20) freezes
+      --  at 20. B (grow 0.25) still only gets 0.25 of the first free space:
+      --  200 * 0.25 = 50.
+      It := [1 => (Basis_Definite => True, Grow => 0.5, Max_Main => 20.0, others => <>),
+             2 => (Basis_Definite => True, Grow => 0.25, others => <>)];
+      Resolve (C, It);
+      Check ("grow: factors under 1 after a freeze",
+             It (1).Main = 20.0 and then It (2).Main = 50.0);
    end Test_Grow_Shrink;
 
    ---------------------------------------------------------------------
