@@ -88,10 +88,10 @@ package body Boxflex.Flex with SPARK_Mode is
    end Form_Lines;
 
    Max_U  : constant Units := To_Units (Length'Last);
-   --  Max_Pos = Coord'Last - Length'Last, and Length'Last = 2**22,
-   --  so a position of at most Length'Last (as a Coord) is safe.
+   --  Max_Pos = Coord'Last - Length'Last = Length'Last - Coord'Small,
+   --  so a position at Max_U or above has to become Max_Pos.
    function Pos (U : Units) return Coord is
-      (if U > Max_U then Max_Pos else Coord'(Coord'Small) * Integer (U))
+      (if U >= Max_U then Max_Pos else Coord'(Coord'Small) * Integer (U))
       with Pre => U >= 0;
    --  Units to Coord, saturating at Max_Pos.
 
