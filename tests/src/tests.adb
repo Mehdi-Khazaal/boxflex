@@ -116,22 +116,227 @@ procedure Tests is
       Check ("resolve: packed",     It (2).Pos_Main = 55.0);
       Check ("resolve: in range",   Placed_In_Range (It (1)) and Placed_In_Range (It (2)));
 
-      --  Testing of fractional units
-      It (1) := 
-         (Basis_Definite => False,
-         Content_Main => 50.0,
-         Margin_Main_Start => 2.25,
-         Margin_Main_End => 2.75,
-         others => <>);
-      
+      --  Stretch eligibility tests
+      --  Case 1: C.Align = Stretch, I.Self = Auto,
+      --  I.Cross_Definite = False, Expected return 120
+      C.Cross := 120.0;
+      C.Align := Stretch;
+      It (1).Content_Cross := 30.0;
+      It (1).Self := Auto;
+      It (1).Cross_Definite := False;
       Resolve (C, It);
-      Check ("resolve: fractional sizing", It (1).Main = 50.0 and then It (2).Main = 80.0);
-      Check ("resolve: fractional margin", It (1).Pos_Main = 2.25 and then It (2).Pos_Main = 55.0);
-      --  pending, once grow is implemented:
-      --  It (1).Grow := 1.0; It (2).Grow := 1.0; It (2).Max_Main := Length'Last;
-      --  Resolve (C, It);
-      --  Check ("grow splits free space", It (1).Main = 72.5 and It (2).Main = 122.5);
+      Check ("stretch: eligible and size 120", It (1).Cross = 120.0);
+
+      --  Case 2: C.Align = Stretch, I.Self = Flex_Start,
+      --  I.Cross_Definite = False, Expected return 30
+      It (1).Self := Flex_Start;
+      Resolve (C, It);
+      Check ("stretch: not eligible with size 30", It (1).Cross = 30.0);
+
+      --  Case 3: C.Align = Center, I.Self = Stretch, I.Cross_Definite = False,
+      --  Expected return 120
+      C.Align := Center;
+      It (1).Self := Stretch;
+      Resolve (C, It);
+      Check ("stretch: eligible and size 120", It (1).Cross = 120.0);
+
+      --  Case 4: C.Align = Stretch, I.Self = Auto, I.Cross_Definite = True,
+      -- Expected return 30
+      C.Align := Stretch;
+      It (1).Self := Auto;
+      It (1).Cross_Definite := True;
+      Resolve (C, It);
+      Check ("stretch: not eligible with size 30", It (1).Cross = 30.0);
+
+      --  Case 5: C.Align = Center, I.Self = Auto, I.Cross_Definite = False,
+      --  Expected return 30
+      C.Align := Center;
+      It (1).Self := Auto;
+      It (1).Cross_Definite := False;
+      Resolve (C, It);
+      Check ("stretch: not eligible with size 30", It (1).Cross = 30.0);
+
+      --  Stretch test cases
+      --  Case 1: Line_Cross = 120, Start_Margin = 10, End_Margin = 15,
+      --  Min_Cross = 0, Max_Cross = 200, should produce 95
+      C := (Main => 200.0, Cross => 120.0, Wrap => No_Wrap, others => <>);
+      It (1) := (Margin_Cross_Start => 10.0,
+                   Margin_Cross_End => 15.0,
+                   Cross_Definite => False,
+                   Min_Cross => 0.0,
+                   Max_Cross => 200.0,
+                   Self => Stretch,
+                   others => <>);
+      Resolve (C, It);
+      Check ("stretch: cross size 95", It (1).Cross = 95.0);
+
+      --  Case 2: Line_Cross = 120, Start_Margin = 10, End_Margin = 15,
+      --  Min_Cross = 0, Max_Cross = 80, should produce 80
+      It (1).Max_Cross := 80.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 80", It (1).Cross = 80.0);
+      --  Case 3: Min_Cross = 110, Max_Cross = 200, should produce 110
+      It (1).Min_Cross := 110.0;
+      It (1).Max_Cross := 200.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 110", It (1).Cross = 110.0);
+
+      --  Case 4: Line_Cross = 50, Start_Margin = 40, End_margin = 30, Min_Cross = 0,
+      --  should produce 0
+      C.Cross := 50.0;
+      It (1).Margin_Cross_Start := 40.0;
+      It (1).Margin_Cross_End := 30.0;
+      It (1).Min_Cross := 0.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 0", It (1).Cross = 0.0);
+
+      --  Case 5: Min_Cross = 10
+      It (1).Min_Cross := 10.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 10", It (1).Cross = 10.0);
+
+      --  Case 6: Line_cross = 120, Start_Margin = 0, End_Margin = 0, Min_Cross = 90,
+      --  Max_Cross = 60, should produce 90
+      C.Cross := 120.0;
+      It (1).Margin_Cross_Start := 0.0;
+      It (1).Margin_Cross_End := 0.0;
+      It (1).Min_Cross := 90.0;
+      It (1).Max_Cross := 60.0;
+      Resolve (C, It);
+      Check ("stretch: cross size 90", It (1).Cross = 90.0);
    end Test_Flex;
+
+   ---------------------------------------------------------------------
+   --  Grow and shrink (step 3 of the algorithm)
+   ---------------------------------------------------------------------
+
+   procedure Test_Grow_Shrink is
+      use Boxflex.Flex;
+      C     : constant Container := (Main => 200.0, Cross => 100.0, others => <>);
+      C300  : constant Container := (Main => 300.0, Cross => 100.0, others => <>);
+      It    : Item_Array (1 .. 2);
+      Three : Item_Array (1 .. 3);
+   begin
+      --  Case 1: 200 px row. A wants 50 + 5 px margin, B wants 100.
+      --  Free space = 200 - 155 = 45, split 1 : 1, so 22.5 each.
+      It := [1 => (Basis => 50.0, Basis_Definite => True,
+                   Margin_Main_Start => 5.0, Grow => 1.0, others => <>),
+             2 => (Basis => 100.0, Basis_Definite => True,
+                   Grow => 1.0, others => <>)];
+      Resolve (C, It);
+      Check ("grow: equal split", It (1).Main = 72.5 and then It (2).Main = 122.5);
+      Check ("grow: B starts after A", It (2).Pos_Main = 77.5);
+      --  Case 2: the grow factors add up to less than 1 (0.25 + 0.5 = 0.75),
+      --  so only that part of the free space is handed out:
+      --  A gets 200 * 0.25 = 50, B gets 200 * 0.5 = 100, and 50 px stay empty.
+      It := [1 => (Basis_Definite => True, Grow => 0.25, others => <>),
+             2 => (Basis_Definite => True, Grow => 0.5, others => <>)];
+      Resolve (C, It);
+      Check ("grow: factors under 1", It (1).Main = 50.0 and then It (2).Main = 100.0);
+      --  Case 3: a max stops an item. All three start at 0 and grow 1 in 300 px,
+      --  so 100 each, but A has max 50: A freezes at 50, and B and C share
+      --  the other 250 (125 each).
+      Three := [1 => (Basis_Definite => True, Grow => 1.0, Max_Main => 50.0, others => <>),
+                others => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C300, Three);
+      Check ("grow: max freezes",
+             Three (1).Main = 50.0 and then Three (2).Main = 125.0
+             and then Three (3).Main = 125.0);
+
+      --  Case 4: a min holds an item up. 100 each would leave A under its
+      --  min of 150: A freezes at 150, and B and C share the other 150.
+      Three := [1 => (Basis_Definite => True, Grow => 1.0, Min_Main => 150.0, others => <>),
+                others => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C300, Three);
+      Check ("grow: min freezes",
+             Three (1).Main = 150.0 and then Three (2).Main = 75.0
+             and then Three (3).Main = 75.0);
+
+      --  Case 5: A asks for 100 but its max is 50, so it cannot grow at all
+      --  and is frozen at 50 before sharing starts. B gets the other 150.
+      It := [1 => (Basis => 100.0, Basis_Definite => True, Grow => 1.0,
+                   Max_Main => 50.0, others => <>),
+             2 => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C, It);
+      Check ("grow: max below basis", It (1).Main = 50.0 and then It (2).Main = 150.0);
+
+      --  Case 6: factors under 1 after a freeze. A (grow 0.5, max 20) freezes
+      --  at 20. B (grow 0.25) still only gets 0.25 of the first free space:
+      --  200 * 0.25 = 50.
+      It := [1 => (Basis_Definite => True, Grow => 0.5, Max_Main => 20.0, others => <>),
+             2 => (Basis_Definite => True, Grow => 0.25, others => <>)];
+      Resolve (C, It);
+      Check ("grow: factors under 1 after a freeze",
+             It (1).Main = 20.0 and then It (2).Main = 50.0);
+      --  Shrink: the items ask for more than the row has, so they give
+      --  space back. Each gives in proportion to shrink factor x base size.
+
+      --  Case 7: A wants 100, B wants 300, in 200 px: 200 too much.
+      --  Both shrink 1, so B (3 times bigger) gives 3 times more:
+      --  A gives 50, B gives 150.
+      It := [1 => (Basis => 100.0, Basis_Definite => True, others => <>),
+             2 => (Basis => 300.0, Basis_Definite => True, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: by base size", It (1).Main = 50.0 and then It (2).Main = 150.0);
+      Check ("shrink: B starts after A", It (2).Pos_Main = 50.0);
+
+      --  Case 8: same size (150 each, 100 too much), but B has shrink 3,
+      --  so it gives 3 times more: A gives 25, B gives 75.
+      It := [1 => (Basis => 150.0, Basis_Definite => True, others => <>),
+             2 => (Basis => 150.0, Basis_Definite => True, Shrink => 3.0, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: by factor", It (1).Main = 125.0 and then It (2).Main = 75.0);
+
+      --  Case 9: shrink 0 means never shrink. A keeps 150, B gives all 100.
+      It := [1 => (Basis => 150.0, Basis_Definite => True, Shrink => 0.0, others => <>),
+             2 => (Basis => 150.0, Basis_Definite => True, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: factor 0", It (1).Main = 150.0 and then It (2).Main = 50.0);
+
+      --  Case 10: a min stops an item. Three items of 200 in 300 px would
+      --  each give 100, but A cannot go under 150: A freezes at 150, and
+      --  B and C give the rest (125 each).
+      Three := [1 => (Basis => 200.0, Basis_Definite => True, Min_Main => 150.0,
+                      others => <>),
+                others => (Basis => 200.0, Basis_Definite => True, others => <>)];
+      Resolve (C300, Three);
+      Check ("shrink: min freezes",
+             Three (1).Main = 150.0 and then Three (2).Main = 75.0
+             and then Three (3).Main = 75.0);
+
+      --  Case 11: A asks for 50 but its min is 150, so it cannot shrink at
+      --  all and is frozen at 150 before sharing starts. B gives 50.
+      It := [1 => (Basis => 50.0, Basis_Definite => True, Min_Main => 150.0,
+                   others => <>),
+             2 => (Basis => 100.0, Basis_Definite => True, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: min above basis", It (1).Main = 150.0 and then It (2).Main = 50.0);
+
+      --  Case 12: shrink factors under 1 (0.25 + 0.25 = 0.5): only half of
+      --  the 100 px gets taken back, 25 from each, and the row overflows.
+      It := [1 => (Basis => 150.0, Basis_Definite => True, Shrink => 0.25, others => <>),
+             2 => (Basis => 150.0, Basis_Definite => True, Shrink => 0.25, others => <>)];
+      Resolve (C, It);
+      Check ("shrink: factors under 1",
+             It (1).Main = 125.0 and then It (2).Main = 125.0);
+
+      --  Leftovers: 200 px in three equal shares is 66.67 each, which is
+      --  not a whole number of 1/256 px steps. Rounding each share down
+      --  would leave the row 2 steps short (grow) or 1 step too wide
+      --  (shrink). The sizes must add up to the row exactly, so the last
+      --  item ends right at 200.
+      Three := [others => (Basis_Definite => True, Grow => 1.0, others => <>)];
+      Resolve (C, Three);
+      Check ("grow: sizes add up to the row",
+             Three (1).Main + Three (2).Main + Three (3).Main = 200.0
+             and then Three (3).Pos_Main + Three (3).Main = 200.0);
+
+      Three := [others => (Basis => 100.0, Basis_Definite => True, others => <>)];
+      Resolve (C, Three);
+      Check ("shrink: sizes add up to the row",
+             Three (1).Main + Three (2).Main + Three (3).Main = 200.0
+             and then Three (3).Pos_Main + Three (3).Main = 200.0);
+   end Test_Grow_Shrink;
 
    ---------------------------------------------------------------------
    --  Layout (the tree walk)
@@ -158,14 +363,14 @@ procedure Tests is
       Check ("structure untouched", Child_Count (T, R) = 2);
       Check ("children placed", Placed (Layout_Of (T, A)) and Placed (Layout_Of (T, B)));
 
-      --  pending: two equal growers split the main axis
-      --  Check ("A is left half",  Layout_Of (T, A) = Make (0.0,   0.0, 100.0, 100.0));
-      --  Check ("B is right half", Layout_Of (T, B) = Make (100.0, 0.0, 100.0, 100.0));
-      --  Check ("siblings do not overlap",
-      --         not Overlaps (Layout_Of (T, A), Layout_Of (T, B)));
-      --  Check ("children inside parent",
-      --         Contains (Layout_Of (T, R), Layout_Of (T, A))
-      --         and Contains (Layout_Of (T, R), Layout_Of (T, B)));
+      --  Two equal growers split the main axis.
+      Check ("A is left half",  Layout_Of (T, A) = Make (0.0,   0.0, 100.0, 100.0));
+      Check ("B is right half", Layout_Of (T, B) = Make (100.0, 0.0, 100.0, 100.0));
+      Check ("siblings do not overlap",
+             not Overlaps (Layout_Of (T, A), Layout_Of (T, B)));
+      Check ("children inside parent",
+             Contains (Layout_Of (T, R), Layout_Of (T, A))
+             and Contains (Layout_Of (T, R), Layout_Of (T, B)));
    end Test_Layout;
 
 begin
@@ -173,6 +378,7 @@ begin
    Test_Tree;
    Test_Flex;
    Spark_Fixes_Regression (Failures);
+   Test_Grow_Shrink;
    Test_Layout;
 
    New_Line;
