@@ -207,6 +207,97 @@ procedure Tests is
    end Test_Flex;
 
    ---------------------------------------------------------------------
+   --  Flex: cross-axis alignment (SF-J, SF-K, UC-04)
+   ---------------------------------------------------------------------
+
+   procedure Test_Align is
+      use Boxflex.Flex;
+
+      --  Container cross size 100.
+      --  One item with cross size 40. Definite so strech does not change it.
+      --  With no margins, free space is 100 - 40 = 60.
+      C : Container := (Main => 200.0, Cross => 100.0, others => <>);
+      A : Item_Array (1 .. 1) :=
+        [1 => (Content_Cross => 40.0, Cross_Definite => True, others => <>)];
+   begin
+      --  SF-J: align-items on the container
+
+      --  Case 1: C.Align = Flex_Start, I.Self = Auto, no margins
+      --  should produce: 0 (the start edge)
+      C.Align := Flex_Start;
+      A (1).Self := Auto;
+      Resolve (C, A);
+      Check ("align: flex-start", A (1).Pos_Cross = 0.0);
+
+      --  Case 2: C.Align = Center, I.Self = Auto, no margins
+      --  should produce: 30 (60 / 2)
+      C.Align := Center;
+      Resolve (C, A);
+      Check ("align: center", A (1).Pos_Cross = 30.0);
+
+      --  Case 3: C.Align = Flex_End, I.Self = Auto, no margins
+      --  should produce: 60 (all the free space before the item)
+      C.Align := Flex_End;
+      Resolve (C, A);
+      Check ("align: flex-end", A (1).Pos_Cross = 60.0);
+
+      --  align-self 
+
+      --  Case 4: C.Align = Flex_End, I.Self = Flex_Start,
+      --  should produce 0 (align-self overrides align-items)
+      A (1).Self := Flex_Start;
+      Resolve (C, A);
+      Check ("align-self overrides align-items", A (1).Pos_Cross = 0.0);
+
+      -- Case 5: C.Align = Flex_Start, I.Self = Center,
+      -- should produce: 30
+      C.Align := Flex_Start;
+      A (1).Self := Center;
+      Resolve (C, A);
+      Check ("align-self: center", A (1).Pos_Cross = 30.0);
+
+      -- Case 6: C.Align = Flex_Start, I.Self = Flex_End,
+      -- should produce: 60
+      A (1).Self := Flex_End;
+      Resolve (C,A);
+      Check ("align-self: flex-end", A (1).Pos_Cross = 60.0);
+
+      -- Case 7: C.Align = Flex_End, I.Self = Auto,
+      -- should produce: 60 (auto uses the container's align-items)
+      C.Align := Flex_End;
+      A (1).Self := Auto;
+      Resolve (C, A);
+      Check ("align-self: auto uses align-items", A (1).Pos_Cross = 60.0);
+
+      -- SF-J with margins
+
+      -- Case 8: C.Align = Center, margins 10 and 10,
+      -- free space = 100 - 40 - 10 - 10 = 40
+      -- should produce 30 (margin 10 + 40 / 2)
+      C.Align := Center;
+      A (1).Margin_Cross_Start := 10.0;
+      A (1).Margin_Cross_End := 10.0;
+      Resolve (C,A);
+      Check ("align-items: center with margins", A (1).Pos_Cross = 30.0);
+
+      -- Case 9: C.Align = Flex_End, margins 10 and 10,
+      -- should produce 50 (margin 10 + 40 free)
+      -- item ends at 90, bottom margin reaches edge at 100
+      C.Align := Flex_End;
+      Resolve (C, A);
+      Check ("align-items: flex-end with margins", A (1).Pos_Cross = 50.0);
+
+      -- UC-04 extension 6B: stretch
+
+      -- Case 10: C.Align = Stretch, I.Self = Auto, I.Cross_Definite = False,
+      -- margins 10 and 10, should produce 80 (100 - 10 - 10) and 
+      -- position 10 (stretch starts at the margin, no free space)
+      C.Align := Stretch;
+      A (1).Cross_Definite := False;
+      Resolve (C, A);
+      Check("stretch: size 80", A (1).Cross = 80.0);
+      Check("stretch: position 10", A (1).Pos_Cross = 10.0);
+   end Test_Align;
    --  Grow and shrink (step 3 of the algorithm)
    ---------------------------------------------------------------------
 
@@ -377,6 +468,7 @@ begin
    Test_Geometry;
    Test_Tree;
    Test_Flex;
+   Test_Align;
    Test_Grow_Shrink;
    Test_Layout;
    Spark_Fixes_Regression (Failures);

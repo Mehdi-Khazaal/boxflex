@@ -304,11 +304,38 @@ package body Boxflex.Flex with SPARK_Mode is
       end loop;
    end Main_Positions;
 
+   function Effective_Align (C : Container; I : Item) return Align_Items is
+      (case I.Self is
+         when Auto       => C.Align,
+         when Stretch    => Stretch,
+         when Flex_Start => Flex_Start,
+         when Flex_End   => Flex_End,
+         when Center     => Center,
+         when Baseline   => Baseline);
+
    procedure Cross_Positions (C : Container; Items : in out Item_Array) is
-      pragma Unreferenced (C);
    begin
       for K in Items'Range loop
-         Items (K).Pos_Cross := Pos (To_Units (Items (K).Margin_Cross_Start));
+         declare
+            Start : constant Units := To_Units (Items (K).Margin_Cross_Start);
+            --  Space left in the container after the item's margin box.
+            --  Negative when the item is larger than the container.
+            Free : constant Units :=
+               To_Units (C.Cross)
+               - To_Units (Items (K).Cross)
+               - Start
+               - To_Units (Items (K).Margin_Cross_End);
+
+            Offset : constant Units :=
+               (case Effective_Align (C, Items (K)) is
+                  when Flex_End => Free,
+                  when Center   => Free / 2,
+                  when others   => 0);
+         begin
+            --  Pos needs a value >= 0, so an item that overflows at the
+            --  start is clamped to 0
+            Items (K).Pos_Cross := Pos (Units'Max (0, Start + Offset));
+         end;
       end loop;
    end Cross_Positions;
 
