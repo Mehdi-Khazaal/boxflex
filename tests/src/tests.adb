@@ -14,6 +14,7 @@ with Boxflex.Tree;     use Boxflex.Tree;
 with Boxflex.Flex;
 with Boxflex.Layout_Plain;
 with Spark_Fixes_Regression;
+with Justify_Regression;
 
 procedure Tests is
 
@@ -380,6 +381,7 @@ begin
    Test_Grow_Shrink;
    Test_Layout;
    Spark_Fixes_Regression (Failures);
+   Justify_Regression (Failures);
 
    New_Line;
    if Failures = 0 then
