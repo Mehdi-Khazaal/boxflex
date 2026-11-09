@@ -1,12 +1,4 @@
 package body Boxflex.Flex with SPARK_Mode is
-
-   --  Sums over many items can exceed Coord. Accumulate in units of
-   --  Coord'Small in a wide integer instead.
-   type Units is range -2 ** 62 .. 2 ** 62 - 1;
-
-   function To_Units (L : Length) return Units is
-     (Units (L / Length'(Length'Small)));
-
    function Clamp (V, Lo, Hi : Length) return Length is
       (Length'Max (Lo, Length'Min (V, Hi)));
 
@@ -18,18 +10,6 @@ package body Boxflex.Flex with SPARK_Mode is
       --  (I.Self = Auto and C.Align = Stretch).
       (not I.Cross_Definite and then (I.Self = Stretch
       or else (I.Self = Auto and then C.Align = Stretch)));
-
-   --  Calculates Before gaps out of Slots gaps.
-   function Distributed_Offset (
-      Free_Space : Units;
-      Slots : Positive;
-      Before : Natural) return Units
-   with
-      Pre => Free_Space >= 0
-         and then Before <= Slots
-         and then Slots <= 2 * Max_Nodes,
-      Post => Distributed_Offset'Result >= 0
-         and then Distributed_Offset'Result <= Free_Space;
 
    function Distributed_Offset (
       Free_Space : Units;
@@ -43,27 +23,36 @@ package body Boxflex.Flex with SPARK_Mode is
    begin
       return Count * Quotient + Units'Min (Count, Remainder);
    end Distributed_Offset;
-
-   --  Determines the amount of extra space preceding an Item.
-   function Justify_Offset
-      (Mode       : Justify_Content;
-       Free_Space : Units;
-       Item_Count : Natural;
-       Index      : Natural) return Units
-   with
-         Pre => Free_Space >= 0
-         and then Free_Space <= To_Units (Length'Last)
-         and then Item_Count <= Max_Nodes
-         and then
-            (if Item_Count = 0 then Index = 0 else Index < Item_Count),
-         Post => Justify_Offset'Result >= 0
-         and then Justify_Offset'Result <= Free_Space;
+   --  Calculates the size of the offset between one layout Item and its neighbors.
+   --  @param Free_Space describes the total free space there is in the container. It is the
+   --   container's main-axis size minus the margins and sizes of its child elements.
+   --  @param Slots is the number of gaps that separate Items in the Container.
+   --  @param Before describes the numbered gap out of Slots for which the size is calculated.
+   --  @return (Units)  The size of the gap not including the container margins and predefined gap
 
    function Justify_Offset
       (Mode       : Justify_Content;
        Free_Space : Units;
        Item_Count : Natural;
        Index      : Natural) return Units is
+      function Single_Item return Units is
+         (case Mode is
+            when Flex_Start | Space_Between => 0,
+            when Flex_End => Free_Space,
+            when Center | Space_Around | Space_Evenly => Free_Space / 2)
+      with Post => Single_Item'Result >= 0 and then Single_Item'Result <= Free_Space;
+
+      function Multiple_Items return Units is
+         (case Mode is
+            when Flex_Start => 0,
+            when Flex_End => Free_Space,
+            when Center => Free_Space / 2,
+            when Space_Between =>
+               Distributed_Offset (Free_Space, Item_Count - 1, Index),
+            when Space_Around =>
+               Distributed_Offset (Free_Space, 2 * Item_Count, 2 * Index + 1),
+            when Space_Evenly =>
+               Distributed_Offset (Free_Space, Item_Count + 1, Index + 1));
    begin
       --  Item-count edge cases
       if Item_Count = 0 then
@@ -71,31 +60,11 @@ package body Boxflex.Flex with SPARK_Mode is
       elsif Item_Count = 1 then
          --  For a single item, Space_Between behaves like Flex_Start,
          --  and Space_Around and Space_Evenly behave like Center for one element
-         case Mode is
-            when Flex_Start | Space_Between =>
-               return 0;
-            when Flex_End =>
-               return Free_Space;
-            when Center | Space_Around | Space_Evenly =>
-               return Free_Space / 2;
-         end case;
+         return Single_Item;
       end if;
 
       --  Determine offset based on Mode
-      case Mode is
-         when Flex_Start =>
-            return 0;
-         when Flex_End =>
-            return Free_Space;
-         when Center =>
-            return Free_Space / 2;
-         when Space_Between =>
-            return Distributed_Offset (Free_Space, Item_Count - 1, Index);
-         when Space_Around =>
-            return Distributed_Offset (Free_Space, 2 * Item_Count, 2 * Index + 1);
-         when Space_Evenly =>
-            return Distributed_Offset (Free_Space, Item_Count + 1, Index + 1);
-      end case;
+      return Multiple_Items;
    end Justify_Offset;
    --  Implementation for Stretched_Cross
    function Stretched_Cross (Line_Cross : Length; I : Item) return Length
