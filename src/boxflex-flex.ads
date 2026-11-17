@@ -184,6 +184,12 @@ package Boxflex.Flex with SPARK_Mode is
 
    --  Helper function specifications
 private
+   --  Sums over many items can exceed Coord. Accumulate in units of
+   --  Coord'Small in a wide integer instead.
+   type Units is range -2 ** 62 .. 2 ** 62 - 1;
+
+   function To_Units (L : Length) return Units is
+     (Units (L / Length'(Length'Small)));
 
    --  Specification for Stretched_Cross: The result is the item's cross size when stretched
    --  to fill the line's cross size, clamped to the item's min and max cross sizes. The result
@@ -193,5 +199,34 @@ private
             Post =>  Stretched_Cross'Result >= I.Min_Cross
                      and then (I.Max_Cross < I.Min_Cross
                         or else Stretched_Cross'Result <= I.Max_Cross);
+
+   --  Calculates the size of the Before-th gap out of Slots gaps given a definite
+   --  Free_Space.
+   function Distributed_Offset (
+      Free_Space : Units;
+      Slots : Positive;
+      Before : Natural) return Units
+   with
+      Pre => Free_Space >= 0
+         and then Before <= Slots
+         and then Slots <= 2 * Max_Nodes,
+      Post => Distributed_Offset'Result >= 0
+         and then Distributed_Offset'Result <= Free_Space;
+
+   --  Determines the amount of extra space preceding an Item. This does not include
+   --  the margins nor the predefined gap between elements.
+   function Justify_Offset
+      (Mode       : Justify_Content;
+       Free_Space : Units;
+       Item_Count : Natural;
+       Index      : Natural) return Units
+   with
+         Pre => Free_Space >= 0
+         and then Free_Space <= To_Units (Length'Last)
+         and then Item_Count <= Max_Nodes
+         and then
+            (if Item_Count = 0 then Index = 0 else Index < Item_Count),
+         Post => Justify_Offset'Result >= 0
+         and then Justify_Offset'Result <= Free_Space;
 
 end Boxflex.Flex;

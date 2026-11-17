@@ -1,12 +1,4 @@
 package body Boxflex.Flex with SPARK_Mode is
-
-   --  Sums over many items can exceed Coord. Accumulate in units of
-   --  Coord'Small in a wide integer instead.
-   type Units is range -2 ** 62 .. 2 ** 62 - 1;
-
-   function To_Units (L : Length) return Units is
-     (Units (L / Length'(Length'Small)));
-
    function Clamp (V, Lo, Hi : Length) return Length is
       (Length'Max (Lo, Length'Min (V, Hi)));
 
@@ -19,6 +11,61 @@ package body Boxflex.Flex with SPARK_Mode is
       (not I.Cross_Definite and then (I.Self = Stretch
       or else (I.Self = Auto and then C.Align = Stretch)));
 
+   function Distributed_Offset (
+      Free_Space : Units;
+      Slots : Positive;
+      Before : Natural) return Units
+   is
+      Gaps : constant Units := Units (Slots);
+      Count : constant Units := Units (Before);
+      Quotient : constant Units := Free_Space / Gaps;
+      Remainder : constant Units := Free_Space rem Gaps;
+   begin
+      return Count * Quotient + Units'Min (Count, Remainder);
+   end Distributed_Offset;
+   --  Calculates the size of the offset between one layout Item and its neighbors.
+   --  @param Free_Space describes the total free space there is in the container. It is the
+   --   container's main-axis size minus the margins and sizes of its child elements.
+   --  @param Slots is the number of gaps that separate Items in the Container.
+   --  @param Before describes the numbered gap out of Slots for which the size is calculated.
+   --  @return (Units)  The size of the gap not including the container margins and predefined gap
+
+   function Justify_Offset
+      (Mode       : Justify_Content;
+       Free_Space : Units;
+       Item_Count : Natural;
+       Index      : Natural) return Units is
+      function Single_Item return Units is
+         (case Mode is
+            when Flex_Start | Space_Between => 0,
+            when Flex_End => Free_Space,
+            when Center | Space_Around | Space_Evenly => Free_Space / 2)
+      with Post => Single_Item'Result >= 0 and then Single_Item'Result <= Free_Space;
+
+      function Multiple_Items return Units is
+         (case Mode is
+            when Flex_Start => 0,
+            when Flex_End => Free_Space,
+            when Center => Free_Space / 2,
+            when Space_Between =>
+               Distributed_Offset (Free_Space, Item_Count - 1, Index),
+            when Space_Around =>
+               Distributed_Offset (Free_Space, 2 * Item_Count, 2 * Index + 1),
+            when Space_Evenly =>
+               Distributed_Offset (Free_Space, Item_Count + 1, Index + 1));
+   begin
+      --  Item-count edge cases
+      if Item_Count = 0 then
+         return 0;
+      elsif Item_Count = 1 then
+         --  For a single item, Space_Between behaves like Flex_Start,
+         --  and Space_Around and Space_Evenly behave like Center for one element
+         return Single_Item;
+      end if;
+
+      --  Determine offset based on Mode
+      return Multiple_Items;
+   end Justify_Offset;
    --  Implementation for Stretched_Cross
    function Stretched_Cross (Line_Cross : Length; I : Item) return Length
    is
@@ -284,9 +331,27 @@ package body Boxflex.Flex with SPARK_Mode is
    end Cross_Sizes;
 
    procedure Main_Positions (C : Container; Items : in out Item_Array) is
-      Cursor : Units := 0;
-      Gap : constant Units := To_Units (C.Main_Gap);
+      Cursor      : Units := 0;
+      Used        : Units := 0;
+      Free_Space  : Units;
+      Gap         : constant Units := To_Units (C.Main_Gap);
+      Offset      : Units;
    begin
+      --  Calculate occupied space
+      for K in Items'Range loop
+         Used := Used
+            + To_Units (Items (K).Margin_Main_Start)
+            + To_Units (Items (K).Main)
+            + To_Units (Items (K).Margin_Main_End);
+
+            if K > Items'First then
+               Used := Used + Gap;
+            end if;
+      end loop;
+
+      Free_Space := Units'Max (0, To_Units (C.Main) - Used);
+
+      --  Position items
       for K in Items'Range loop
          pragma Loop_Invariant (Cursor >= 0);
          pragma Loop_Invariant
@@ -297,10 +362,21 @@ package body Boxflex.Flex with SPARK_Mode is
            (for all J in K .. Items'Last => Items (J) = Items'Loop_Entry (J));
 
          Cursor := Cursor + To_Units (Items (K).Margin_Main_Start);
-         Items (K).Pos_Main  := Pos (Cursor);
 
+         --  Get the offset
+         Offset := Justify_Offset
+            (C.Justify, Free_Space, Items'Length, Natural (K - Items'First));
+
+         --  Set main position
+         Items (K).Pos_Main := Pos (Cursor + Offset);
+
+         --  adjust cursor
          Cursor := Cursor + To_Units (Items (K).Main)
-                   + To_Units (Items (K).Margin_Main_End) + Gap;
+            + To_Units (Items (K).Margin_Main_End);
+
+         if K < Items'Last then
+            Cursor := Cursor + Gap;
+         end if;
       end loop;
    end Main_Positions;
 
